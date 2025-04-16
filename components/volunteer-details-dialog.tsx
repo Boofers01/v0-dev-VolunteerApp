@@ -46,6 +46,8 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
     },
   )
   const [isProcessing, setIsProcessing] = useState(false)
+  // Track which popover is open
+  const [openPopoverId, setOpenPopoverId] = useState<string | null>(null)
 
   // Initialize state from volunteer prop
   useEffect(() => {
@@ -212,6 +214,7 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
       hasImage: !!updatedVolunteer.image,
       imageLength: updatedVolunteer.image ? updatedVolunteer.image.length : 0,
       attachmentsCount: updatedVolunteer.attachments ? updatedVolunteer.attachments.length : 0,
+      checklistProgress: updatedVolunteer.checklistProgress,
     })
 
     setIsProcessing(true)
@@ -509,6 +512,8 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
   }
 
   const handleChecklistItemToggle = async (itemId: string, completed: boolean) => {
+    debugLog("Toggling checklist item", { itemId, completed })
+
     // Create a new array with the updated progress
     const updatedProgress = checklistProgress.map((item) => {
       if (item.itemId === itemId) {
@@ -545,6 +550,9 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
 
   const handleScheduledDateChange = async (itemId: string, date: Date | undefined) => {
     debugLog("Setting scheduled date", { itemId, date: date?.toISOString() })
+
+    // Close the popover
+    setOpenPopoverId(null)
 
     // Create a new array with the updated progress
     const updatedProgress = checklistProgress.map((item) => {
@@ -583,6 +591,9 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
 
   const handleCompletedDateChange = async (itemId: string, date: Date | undefined) => {
     debugLog("Setting completed date", { itemId, date: date?.toISOString() })
+
+    // Close the popover
+    setOpenPopoverId(null)
 
     // Create a new array with the updated progress
     const updatedProgress = checklistProgress.map((item) => {
@@ -899,7 +910,16 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
                             {item.showScheduledDate && (
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-500">Scheduled:</span>
-                                <Popover>
+                                <Popover
+                                  open={openPopoverId === `scheduled-${item.id}`}
+                                  onOpenChange={(open) => {
+                                    if (open) {
+                                      setOpenPopoverId(`scheduled-${item.id}`)
+                                    } else {
+                                      setOpenPopoverId(null)
+                                    }
+                                  }}
+                                >
                                   <PopoverTrigger asChild>
                                     <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
                                       <Calendar className="h-3 w-3 mr-1" />
@@ -913,9 +933,7 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
                                       mode="single"
                                       selected={progress.scheduledDate ? new Date(progress.scheduledDate) : undefined}
                                       onSelect={(date) => {
-                                        if (date) {
-                                          handleScheduledDateChange(item.id, date)
-                                        }
+                                        handleScheduledDateChange(item.id, date || undefined)
                                       }}
                                       initialFocus
                                     />
@@ -944,7 +962,16 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
                                     </Button>
                                   </div>
                                 ) : (
-                                  <Popover>
+                                  <Popover
+                                    open={openPopoverId === `completed-${item.id}`}
+                                    onOpenChange={(open) => {
+                                      if (open) {
+                                        setOpenPopoverId(`completed-${item.id}`)
+                                      } else {
+                                        setOpenPopoverId(null)
+                                      }
+                                    }}
+                                  >
                                     <PopoverTrigger asChild>
                                       <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
                                         <Calendar className="h-3 w-3 mr-1" />
@@ -956,9 +983,7 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
                                         mode="single"
                                         selected={undefined}
                                         onSelect={(date) => {
-                                          if (date) {
-                                            handleCompletedDateChange(item.id, date)
-                                          }
+                                          handleCompletedDateChange(item.id, date || undefined)
                                         }}
                                         initialFocus
                                       />
