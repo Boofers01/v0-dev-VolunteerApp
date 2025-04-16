@@ -273,8 +273,8 @@ export function KanbanCard({ card, listId, onUpdate, onDelete }: KanbanCardProps
             </div>
           )}
 
-          {/* Show list name for cards in the All Volunteers list */}
-          {isInAllVolunteersList && card.listId && (
+          {/* List name is hidden as requested */}
+          {false && isInAllVolunteersList && card.listId && (
             <div className="mt-2">
               <p className="text-xs font-medium mb-1">List:</p>
               <Badge variant="default" className="text-xs py-0 px-1.5 h-5">
