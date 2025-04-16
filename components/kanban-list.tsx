@@ -7,10 +7,15 @@ import { useDrop } from "react-dnd"
 import { KanbanCard } from "@/components/kanban-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, MoreHorizontal, GripVertical } from "lucide-react"
+import { Plus, MoreHorizontal, GripVertical, Filter, X } from "lucide-react"
 import type { CardType } from "@/lib/types"
 import { AddVolunteerDialog } from "@/components/add-volunteer-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Badge } from "@/components/ui/badge"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface KanbanListProps {
   id: string
@@ -40,6 +45,9 @@ export function KanbanList({
   const [isEditing, setIsEditing] = useState(false)
   const [listTitle, setListTitle] = useState(title)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [filterActive, setFilterActive] = useState(false)
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([])
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
   const [{ isOver }, drop] = useDrop({
@@ -52,6 +60,27 @@ export function KanbanList({
     collect: (monitor) => ({
       isOver: !!monitor.isOver(),
     }),
+  })
+
+  // Extract all unique roles and tags from cards
+  const allRoles = Array.from(new Set(cards.flatMap((card) => card.currentRoles || []).filter(Boolean))).sort()
+
+  const allTags = Array.from(new Set(cards.flatMap((card) => card.tags || []).filter(Boolean))).sort()
+
+  // Filter cards based on selected roles and tags
+  const filteredCards = cards.filter((card) => {
+    if (!filterActive || (selectedRoles.length === 0 && selectedTags.length === 0)) {
+      return true
+    }
+
+    const hasSelectedRole =
+      selectedRoles.length === 0 ||
+      (card.currentRoles && card.currentRoles.some((role) => selectedRoles.includes(role)))
+
+    const hasSelectedTag =
+      selectedTags.length === 0 || (card.tags && card.tags.some((tag) => selectedTags.includes(tag)))
+
+    return hasSelectedRole && hasSelectedTag
   })
 
   const handleTitleClick = () => {
@@ -82,6 +111,22 @@ export function KanbanList({
     setIsAddDialogOpen(false)
   }
 
+  const toggleRoleFilter = (role: string) => {
+    setSelectedRoles((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]))
+    setFilterActive(true)
+  }
+
+  const toggleTagFilter = (tag: string) => {
+    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
+    setFilterActive(true)
+  }
+
+  const clearFilters = () => {
+    setSelectedRoles([])
+    setSelectedTags([])
+    setFilterActive(false)
+  }
+
   return (
     <div
       ref={drop}
@@ -107,12 +152,111 @@ export function KanbanList({
               className="font-semibold"
             />
           ) : (
-            <h3 className="font-semibold text-gray-700 cursor-pointer" onClick={handleTitleClick}>
-              {title}
-            </h3>
+            <div className="flex items-center gap-2" onClick={handleTitleClick}>
+              <h3 className="font-semibold text-gray-700 cursor-pointer">{title}</h3>
+              <Badge variant="outline" className="text-xs py-0 px-1.5 h-5 bg-gray-100">
+                {filteredCards.length}
+              </Badge>
+            </div>
           )}
         </div>
         <div className="flex items-center gap-1">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-8 w-8 p-0 ${filterActive ? "bg-blue-50 text-blue-600" : ""}`}
+              >
+                <Filter className="h-4 w-4" />
+                <span className="sr-only">Filter cards</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="start">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">Filter Cards</h4>
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 text-xs">
+                    Clear Filters
+                  </Button>
+                </div>
+
+                <Tabs defaultValue="roles">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="roles">Roles</TabsTrigger>
+                    <TabsTrigger value="tags">Tags</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="roles" className="mt-2">
+                    {allRoles.length > 0 ? (
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {allRoles.map((role) => (
+                          <div key={role} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`role-${id}-${role}`}
+                              checked={selectedRoles.includes(role)}
+                              onCheckedChange={() => toggleRoleFilter(role)}
+                            />
+                            <Label htmlFor={`role-${id}-${role}`} className="text-sm cursor-pointer">
+                              {role}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No roles available</p>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="tags" className="mt-2">
+                    {allTags.length > 0 ? (
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {allTags.map((tag) => (
+                          <div key={tag} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`tag-${id}-${tag}`}
+                              checked={selectedTags.includes(tag)}
+                              onCheckedChange={() => toggleTagFilter(tag)}
+                            />
+                            <Label htmlFor={`tag-${id}-${tag}`} className="text-sm cursor-pointer">
+                              {tag}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No tags available</p>
+                    )}
+                  </TabsContent>
+                </Tabs>
+
+                {filterActive && (selectedRoles.length > 0 || selectedTags.length > 0) && (
+                  <div className="pt-2 border-t">
+                    <h5 className="text-xs font-medium mb-2">Active Filters:</h5>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedRoles.map((role) => (
+                        <Badge key={role} variant="outline" className="flex items-center gap-1 text-xs py-0 px-1.5 h-5">
+                          {role}
+                          <X className="h-3 w-3 cursor-pointer" onClick={() => toggleRoleFilter(role)} />
+                        </Badge>
+                      ))}
+                      {selectedTags.map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className="flex items-center gap-1 text-xs py-0 px-1.5 h-5"
+                        >
+                          {tag}
+                          <X className="h-3 w-3 cursor-pointer" onClick={() => toggleTagFilter(tag)} />
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setIsAddDialogOpen(true)}>
             <Plus className="h-4 w-4" />
             <span className="sr-only">Add card</span>
@@ -135,7 +279,7 @@ export function KanbanList({
       </div>
 
       <div className="p-2 overflow-y-auto flex-grow" style={{ maxHeight: "calc(100% - 50px)" }}>
-        {cards
+        {filteredCards
           .filter(
             (card, index, self) =>
               // Filter out duplicates based on ID
@@ -153,7 +297,11 @@ export function KanbanList({
               onDelete={() => onCardDelete(card.id)}
             />
           ))}
-        {cards.length === 0 && <div className="text-center py-4 text-gray-400 text-sm">No volunteers in this list</div>}
+        {filteredCards.length === 0 && (
+          <div className="text-center py-4 text-gray-400 text-sm">
+            {cards.length === 0 ? "No volunteers in this list" : "No volunteers match the current filters"}
+          </div>
+        )}
       </div>
 
       <AddVolunteerDialog
