@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ArrowLeft, Trash2, Copy } from "lucide-react"
+import { ArrowLeft, Trash2, Copy, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
 import { getDebugLogs, clearDebugLogs } from "@/lib/debug-utils"
 
@@ -12,6 +12,7 @@ export default function DebugLogsPage() {
   const [logs, setLogs] = useState<any[]>([])
   const [storedVolunteers, setStoredVolunteers] = useState<string>("")
   const [copied, setCopied] = useState(false)
+  const [logsCopied, setLogsCopied] = useState(false)
 
   useEffect(() => {
     // Load logs
@@ -51,6 +52,19 @@ export default function DebugLogsPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handleCopyLogs = () => {
+    // Format logs into a string
+    const logsText = logs
+      .map((log) => {
+        return `[${log.timestamp}] ${log.message}${log.data ? "\n" + log.data : ""}`
+      })
+      .join("\n\n")
+
+    navigator.clipboard.writeText(logsText)
+    setLogsCopied(true)
+    setTimeout(() => setLogsCopied(false), 2000)
+  }
+
   return (
     <main className="min-h-screen bg-gray-100">
       <div className="container mx-auto py-8 px-4">
@@ -73,10 +87,16 @@ export default function DebugLogsPage() {
                 <CardTitle>Debug Logs</CardTitle>
                 <CardDescription>Recent application logs</CardDescription>
               </div>
-              <Button variant="destructive" size="sm" onClick={handleClearLogs}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Clear Logs
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleCopyLogs} className="flex items-center gap-2">
+                  {logsCopied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {logsCopied ? "Copied!" : "Copy All"}
+                </Button>
+                <Button variant="destructive" size="sm" onClick={handleClearLogs}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Clear Logs
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[500px] w-full">
@@ -106,7 +126,7 @@ export default function DebugLogsPage() {
                 <CardDescription>Volunteers currently stored in localStorage</CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={handleCopyVolunteers} className="flex items-center gap-2">
-                <Copy className="h-4 w-4" />
+                {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {copied ? "Copied!" : "Copy All"}
               </Button>
             </CardHeader>

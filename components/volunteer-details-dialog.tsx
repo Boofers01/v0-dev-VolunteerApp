@@ -181,6 +181,7 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
           name: updatedVolunteer.title,
           hasImage: !!updatedVolunteer.image,
           imageLength: updatedVolunteer.image ? updatedVolunteer.image.length : 0,
+          checklistProgress: updatedVolunteer.checklistProgress,
         })
 
         // Count volunteers with images for debugging
@@ -928,15 +929,18 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
                                         : "Set date"}
                                     </Button>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0" align="start">
-                                    <CalendarComponent
-                                      mode="single"
-                                      selected={progress.scheduledDate ? new Date(progress.scheduledDate) : undefined}
-                                      onSelect={(date) => {
-                                        handleScheduledDateChange(item.id, date || undefined)
-                                      }}
-                                      initialFocus
-                                    />
+                                  <PopoverContent className="w-auto p-0 z-50" align="start">
+                                    <div className="calendar-wrapper" onClick={(e) => e.stopPropagation()}>
+                                      <CalendarComponent
+                                        mode="single"
+                                        selected={progress.scheduledDate ? new Date(progress.scheduledDate) : undefined}
+                                        onSelect={(date) => {
+                                          handleScheduledDateChange(item.id, date || undefined)
+                                        }}
+                                        initialFocus
+                                        className="pointer-events-auto"
+                                      />
+                                    </div>
                                   </PopoverContent>
                                 </Popover>
                               </div>
@@ -978,15 +982,18 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
                                         Set date
                                       </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <CalendarComponent
-                                        mode="single"
-                                        selected={undefined}
-                                        onSelect={(date) => {
-                                          handleCompletedDateChange(item.id, date || undefined)
-                                        }}
-                                        initialFocus
-                                      />
+                                    <PopoverContent className="w-auto p-0 z-50" align="start">
+                                      <div className="calendar-wrapper" onClick={(e) => e.stopPropagation()}>
+                                        <CalendarComponent
+                                          mode="single"
+                                          selected={undefined}
+                                          onSelect={(date) => {
+                                            handleCompletedDateChange(item.id, date || undefined)
+                                          }}
+                                          initialFocus
+                                          className="pointer-events-auto"
+                                        />
+                                      </div>
                                     </PopoverContent>
                                   </Popover>
                                 )}

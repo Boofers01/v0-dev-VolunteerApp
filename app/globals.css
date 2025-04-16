@@ -92,3 +92,28 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Fix for calendar component */
+.calendar-wrapper {
+  position: relative;
+  z-index: 100;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.calendar-wrapper * {
+  pointer-events: auto !important;
+}
+
+.rdp {
+  position: relative;
+  z-index: 100;
+}
+
+.rdp-button {
+  cursor: pointer !important;
+}
+
+.rdp-day {
+  cursor: pointer !important;
+}
