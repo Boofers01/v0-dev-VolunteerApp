@@ -112,17 +112,53 @@ export default function ReportGeneratorPage() {
   // Load data from localStorage
   useEffect(() => {
     try {
+      setIsLoading(true)
+
+      // Get filter parameters from URL
+      const filtered = searchParams.get("filtered") === "true"
+      const filterRoles = searchParams.get("roles")?.split(",") || []
+      const filterTags = searchParams.get("tags")?.split(",") || []
+      const filterLists = searchParams.get("lists")?.split(",") || []
+
       // Load volunteers
       const savedVolunteers = localStorage.getItem("testVolunteers")
       if (savedVolunteers) {
         const parsedVolunteers = JSON.parse(savedVolunteers)
+        let filteredVolunteers = parsedVolunteers
 
-        // If listId is provided, filter volunteers from that list
-        // For "all-volunteers-list", include all volunteers
+        // Apply filters if they exist and filtered flag is true
+        if (filtered) {
+          filteredVolunteers = parsedVolunteers.filter((volunteer: CardType) => {
+            // Filter by roles if any are selected
+            const matchesRoles =
+              filterRoles.length === 0 ||
+              (volunteer.currentRoles && volunteer.currentRoles.some((role) => filterRoles.includes(role)))
+
+            // Filter by tags if any are selected
+            const matchesTags =
+              filterTags.length === 0 || (volunteer.tags && volunteer.tags.some((tag) => filterTags.includes(tag)))
+
+            // Filter by lists if any are selected
+            const matchesLists = filterLists.length === 0 || filterLists.includes(volunteer.listId || "")
+
+            return matchesRoles && matchesTags && matchesLists
+          })
+        }
+
+        // If listId is provided and not all-volunteers-list, filter by list
         if (listId && listId !== "all-volunteers-list") {
-          setVolunteers(parsedVolunteers.filter((v: CardType) => v.listId === listId))
+          setVolunteers(filteredVolunteers.filter((v: CardType) => v.listId === listId))
         } else {
-          setVolunteers(parsedVolunteers)
+          setVolunteers(filteredVolunteers)
+        }
+
+        // Set excluded volunteers to be those NOT in the filtered list
+        if (filtered) {
+          const filteredIds = new Set(filteredVolunteers.map((v: CardType) => v.id))
+          const excludedIds = parsedVolunteers
+            .filter((v: CardType) => !filteredIds.has(v.id))
+            .map((v: CardType) => v.id)
+          setExcludedVolunteers(excludedIds)
         }
       }
 
@@ -146,7 +182,7 @@ export default function ReportGeneratorPage() {
       console.error("Error loading data:", error)
       setIsLoading(false)
     }
-  }, [listId])
+  }, [listId, searchParams])
 
   // Move field in the ordered list
   const moveField = (dragIndex: number, hoverIndex: number) => {
@@ -180,8 +216,11 @@ export default function ReportGeneratorPage() {
 
   // Generate report
   const generateReport = () => {
+    // Get all volunteers from localStorage
+    const allVolunteers = JSON.parse(localStorage.getItem("testVolunteers") || "[]")
+
     // Filter out excluded volunteers
-    const includedVolunteers = volunteers.filter((v) => !excludedVolunteers.includes(v.id))
+    const includedVolunteers = allVolunteers.filter((v: CardType) => !excludedVolunteers.includes(v.id))
 
     // Get enabled fields in the correct order
     const enabledFields = fields.filter((f) => f.enabled)
@@ -444,7 +483,12 @@ export default function ReportGeneratorPage() {
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="fields">Fields</TabsTrigger>
                       <TabsTrigger value="volunteers">
-                        Volunteers ({volunteers.length - excludedVolunteers.length}/{volunteers.length})
+                        {(() => {
+                          // Get total count of all volunteers
+                          const allVolunteers = JSON.parse(localStorage.getItem("testVolunteers") || "[]")
+                          const includedCount = allVolunteers.length - excludedVolunteers.length
+                          return `Volunteers (${includedCount}/${allVolunteers.length})`
+                        })()}
                       </TabsTrigger>
                     </TabsList>
 
@@ -470,7 +514,11 @@ export default function ReportGeneratorPage() {
 
                     <TabsContent value="volunteers" className="pt-4">
                       <div className="space-y-2 mb-4">
-                        <p className="text-sm text-gray-500">Select which volunteers to include in the report.</p>
+                        <p className="text-sm text-gray-500">
+                          {searchParams.get("filtered") === "true"
+                            ? "Volunteers are pre-filtered based on your board filters. You can modify the selection below."
+                            : "Select which volunteers to include in the report."}
+                        </p>
                       </div>
 
                       <div className="border rounded-md overflow-hidden">
@@ -519,6 +567,71 @@ export default function ReportGeneratorPage() {
                           </TableBody>
                         </Table>
                       </div>
+
+                      {/* Add a section to show excluded volunteers that can be added */}
+                      {searchParams.get("filtered") === "true" && excludedVolunteers.length > 0 && (
+                        <div className="mt-6">
+                          <h3 className="text-sm font-medium mb-2">Additional Volunteers</h3>
+                          <p className="text-xs text-gray-500 mb-4">
+                            These volunteers are not included in your filtered view. Check any you want to add to the
+                            report.
+                          </p>
+
+                          <div className="border rounded-md overflow-hidden">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-12">Add</TableHead>
+                                  <TableHead>Volunteer</TableHead>
+                                  <TableHead>List</TableHead>
+                                  <TableHead>Roles</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {(() => {
+                                  // Get all volunteers from localStorage
+                                  const allVolunteers = JSON.parse(localStorage.getItem("testVolunteers") || "[]")
+                                  // Filter to only show excluded volunteers
+                                  return allVolunteers
+                                    .filter((v: CardType) => excludedVolunteers.includes(v.id))
+                                    .map((volunteer: CardType) => (
+                                      <TableRow key={volunteer.id}>
+                                        <TableCell>
+                                          <Checkbox
+                                            checked={!excludedVolunteers.includes(volunteer.id)}
+                                            onCheckedChange={() => toggleVolunteerExclusion(volunteer.id)}
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          <div className="flex items-center gap-3">
+                                            <Avatar className="h-8 w-8">
+                                              <AvatarImage src={volunteer.image || ""} alt={volunteer.title} />
+                                              <AvatarFallback>{getInitials(volunteer.title)}</AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                              <p className="font-medium">{volunteer.title}</p>
+                                              <p className="text-xs text-gray-500">{volunteer.email}</p>
+                                            </div>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>{getListName(volunteer.listId)}</TableCell>
+                                        <TableCell>
+                                          <div className="flex flex-wrap gap-1">
+                                            {(volunteer.currentRoles || []).map((role, i) => (
+                                              <Badge key={i} variant="outline" className="text-xs py-0 px-1.5 h-5">
+                                                {role}
+                                              </Badge>
+                                            ))}
+                                          </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))
+                                })()}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      )}
                     </TabsContent>
                   </Tabs>
                 </CardContent>

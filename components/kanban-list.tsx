@@ -329,7 +329,27 @@ export function KanbanList({
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleTitleClick}>Rename List</DropdownMenuItem>
               {isAllVolunteersList && (
-                <DropdownMenuItem onClick={() => (window.location.href = `/report-generator?listId=${id}`)}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    // Create a query string with the current filters
+                    const params = new URLSearchParams()
+                    params.append("listId", id)
+
+                    // Add filter parameters
+                    if (selectedRoles.length > 0) {
+                      params.append("roles", selectedRoles.join(","))
+                    }
+                    if (selectedTags.length > 0) {
+                      params.append("tags", selectedTags.join(","))
+                    }
+                    if (selectedLists.length > 0) {
+                      params.append("lists", selectedLists.join(","))
+                    }
+                    params.append("filtered", filterActive ? "true" : "false")
+
+                    window.location.href = `/report-generator?${params.toString()}`
+                  }}
+                >
                   <FileText className="h-4 w-4 mr-2" />
                   Create Report
                 </DropdownMenuItem>
