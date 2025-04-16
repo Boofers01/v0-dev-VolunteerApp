@@ -77,10 +77,12 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
 
   const loadChecklistData = async () => {
     try {
+      debugLog("Loading checklist data for volunteer", { id: volunteer.id })
       const items = await getChecklistItems()
       setChecklistItems(items)
 
       const progress = await getVolunteerChecklistProgress(volunteer.id)
+      debugLog("Loaded checklist progress", { progress })
       setChecklistProgress(progress)
     } catch (error) {
       console.error("Error loading checklist data:", error)
@@ -542,6 +544,8 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
   }
 
   const handleScheduledDateChange = async (itemId: string, date: Date | undefined) => {
+    debugLog("Setting scheduled date", { itemId, date: date?.toISOString() })
+
     // Create a new array with the updated progress
     const updatedProgress = checklistProgress.map((item) => {
       if (item.itemId === itemId) {
@@ -556,11 +560,14 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
     // Update the state
     setChecklistProgress(updatedProgress)
 
-    // Update the volunteer's checklist progress
+    // Update the volunteer's checklist progress in localStorage
     await updateVolunteerChecklistProgress(volunteer.id, updatedProgress)
 
     // Update the edited volunteer with the checklist progress
-    setEditedVolunteer({ ...editedVolunteer, checklistProgress: updatedProgress })
+    setEditedVolunteer((prev) => ({
+      ...prev,
+      checklistProgress: updatedProgress,
+    }))
 
     // Show a status message to confirm the date was set
     setStatusMessage({
@@ -575,6 +582,8 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
   }
 
   const handleCompletedDateChange = async (itemId: string, date: Date | undefined) => {
+    debugLog("Setting completed date", { itemId, date: date?.toISOString() })
+
     // Create a new array with the updated progress
     const updatedProgress = checklistProgress.map((item) => {
       if (item.itemId === itemId) {
@@ -582,7 +591,8 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
           ...item,
           completedAt: date ? date.toISOString() : undefined,
           completedBy: date ? "Current User" : undefined,
-          completed: date ? true : item.completed, // If a date is set, mark as completed
+          // If a date is set, mark as completed
+          completed: date ? true : item.completed,
         }
       }
       return item
@@ -591,11 +601,14 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
     // Update the state
     setChecklistProgress(updatedProgress)
 
-    // Update the volunteer's checklist progress
+    // Update the volunteer's checklist progress in localStorage
     await updateVolunteerChecklistProgress(volunteer.id, updatedProgress)
 
     // Update the edited volunteer with the checklist progress
-    setEditedVolunteer({ ...editedVolunteer, checklistProgress: updatedProgress })
+    setEditedVolunteer((prev) => ({
+      ...prev,
+      checklistProgress: updatedProgress,
+    }))
 
     // Show a status message to confirm the date was set
     setStatusMessage({
@@ -900,7 +913,9 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
                                       mode="single"
                                       selected={progress.scheduledDate ? new Date(progress.scheduledDate) : undefined}
                                       onSelect={(date) => {
-                                        handleScheduledDateChange(item.id, date)
+                                        if (date) {
+                                          handleScheduledDateChange(item.id, date)
+                                        }
                                       }}
                                       initialFocus
                                     />

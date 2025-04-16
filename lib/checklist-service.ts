@@ -109,8 +109,23 @@ export async function getVolunteerChecklistProgress(volunteerId: string): Promis
     try {
       const key = `volunteerProgress_${volunteerId}`
       const storedProgress = localStorage.getItem(key)
+
       if (storedProgress) {
-        return JSON.parse(storedProgress)
+        const progress = JSON.parse(storedProgress)
+        console.log(`Retrieved progress for volunteer ${volunteerId}:`, progress)
+        return progress
+      }
+
+      // If no progress found in dedicated storage, check the main volunteers list
+      const storedVolunteers = localStorage.getItem("testVolunteers")
+      if (storedVolunteers) {
+        const volunteers = JSON.parse(storedVolunteers)
+        const volunteer = volunteers.find((v: any) => v.id === volunteerId)
+
+        if (volunteer && volunteer.checklistProgress) {
+          console.log(`Retrieved progress from main volunteer list for ${volunteerId}:`, volunteer.checklistProgress)
+          return volunteer.checklistProgress
+        }
       }
     } catch (error) {
       console.error("Error reading volunteer progress from localStorage:", error)
@@ -134,6 +149,11 @@ export async function updateVolunteerChecklistProgress(
   if (typeof window !== "undefined") {
     try {
       const key = `volunteerProgress_${volunteerId}`
+
+      // Log the progress being saved for debugging
+      console.log(`Saving progress for volunteer ${volunteerId}:`, progress)
+
+      // Save the progress to localStorage
       localStorage.setItem(key, JSON.stringify(progress))
 
       // Also update the volunteer in the main volunteers list
@@ -145,6 +165,7 @@ export async function updateVolunteerChecklistProgress(
         if (volunteerIndex !== -1) {
           volunteers[volunteerIndex].checklistProgress = progress
           localStorage.setItem("testVolunteers", JSON.stringify(volunteers))
+          console.log(`Updated checklist progress in main volunteer list for ${volunteerId}`)
         }
       }
     } catch (error) {
