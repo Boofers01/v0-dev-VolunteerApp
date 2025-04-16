@@ -7,7 +7,7 @@ import { useDrop } from "react-dnd"
 import { KanbanCard } from "@/components/kanban-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, MoreHorizontal, GripVertical, Filter, X } from "lucide-react"
+import { Plus, MoreHorizontal, GripVertical, Filter, X, FileText } from "lucide-react"
 import type { CardType, ListType } from "@/lib/types"
 import { AddVolunteerDialog } from "@/components/add-volunteer-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -328,6 +328,12 @@ export function KanbanList({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleTitleClick}>Rename List</DropdownMenuItem>
+              {isAllVolunteersList && (
+                <DropdownMenuItem onClick={() => (window.location.href = `/report-generator?listId=${id}`)}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Create Report
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem className="text-red-600" onClick={onDelete}>
                 Delete List
               </DropdownMenuItem>

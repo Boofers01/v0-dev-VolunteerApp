@@ -430,19 +430,15 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
     let updatedImage = editedVolunteer.image
 
     if (removedAttachment && removedAttachment.url === editedVolunteer.image) {
-      // Find another image attachment to use as profile image
-      const imageAttachment = updatedAttachments.find((att) => att.type?.startsWith("image/"))
-      updatedImage = imageAttachment ? imageAttachment.url : null
-      debugLog("Removed attachment was used as profile image", {
+      // If we're removing the attachment used as profile image, set image to null
+      updatedImage = null
+      debugLog("Removed attachment was used as profile image - completely removing profile image", {
         attachmentId,
-        foundNewImage: !!updatedImage,
       })
 
       setStatusMessage({
         type: "success",
-        message: updatedImage
-          ? "Attachment removed. Profile picture updated to another image."
-          : "Attachment removed. Profile picture was reset.",
+        message: "Attachment and profile picture removed successfully to save space.",
       })
     } else {
       setStatusMessage({
