@@ -85,7 +85,34 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
 
       const progress = await getVolunteerChecklistProgress(volunteer.id)
       debugLog("Loaded checklist progress", { progress })
-      setChecklistProgress(progress)
+
+      // Ensure all checklist items have corresponding progress entries
+      const progressMap = new Map(progress.map((p) => [p.itemId, p]))
+      const updatedProgress = [...progress]
+      let progressUpdated = false
+
+      // Check for missing items and add them
+      for (const item of items) {
+        if (!progressMap.has(item.id)) {
+          updatedProgress.push({
+            itemId: item.id,
+            completed: false,
+          })
+          progressUpdated = true
+          debugLog("Added missing checklist item to progress", { itemId: item.id })
+        }
+      }
+
+      // If progress was updated, save it
+      if (progressUpdated) {
+        await updateVolunteerChecklistProgress(volunteer.id, updatedProgress)
+        debugLog("Updated volunteer checklist progress with missing items", {
+          volunteerId: volunteer.id,
+          updatedProgress,
+        })
+      }
+
+      setChecklistProgress(updatedProgress)
     } catch (error) {
       console.error("Error loading checklist data:", error)
     }

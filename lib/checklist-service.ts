@@ -88,7 +88,22 @@ export async function saveChecklistItems(items: ChecklistItem[]): Promise<void> 
   // In a client-side environment, save to localStorage
   if (typeof window !== "undefined") {
     try {
+      // Get the previous checklist items to compare
+      const previousItemsString = localStorage.getItem(CHECKLIST_ITEMS_KEY)
+      const previousItems: ChecklistItem[] = previousItemsString ? JSON.parse(previousItemsString) : []
+
+      // Save the new items
       localStorage.setItem(CHECKLIST_ITEMS_KEY, JSON.stringify(items))
+
+      // Find new items that weren't in the previous list
+      const previousItemIds = new Set(previousItems.map((item) => item.id))
+      const newItems = items.filter((item) => !previousItemIds.has(item.id))
+
+      // If there are new items, update all volunteers' checklist progress
+      if (newItems.length > 0) {
+        console.log(`Found ${newItems.length} new checklist items, updating all volunteers...`)
+        await updateAllVolunteersWithNewChecklistItems(newItems)
+      }
     } catch (error) {
       console.error("Error saving checklist items to localStorage:", error)
     }
@@ -98,6 +113,57 @@ export async function saveChecklistItems(items: ChecklistItem[]): Promise<void> 
   await new Promise((resolve) => setTimeout(resolve, 500))
 
   return
+}
+
+// Helper function to update all volunteers with new checklist items
+async function updateAllVolunteersWithNewChecklistItems(newItems: ChecklistItem[]): Promise<void> {
+  try {
+    // Get all volunteers from localStorage
+    const volunteersString = localStorage.getItem("testVolunteers")
+    if (!volunteersString) return
+
+    const volunteers = JSON.parse(volunteersString)
+    let updatedCount = 0
+
+    // For each volunteer, add the new checklist items to their progress
+    for (const volunteer of volunteers) {
+      if (!volunteer.checklistProgress) {
+        volunteer.checklistProgress = []
+      }
+
+      // Add each new item to the volunteer's progress
+      let updated = false
+      for (const newItem of newItems) {
+        // Check if the item already exists in the volunteer's progress
+        const existingItem = volunteer.checklistProgress.find(
+          (progress: ChecklistProgress) => progress.itemId === newItem.id,
+        )
+
+        // If it doesn't exist, add it
+        if (!existingItem) {
+          volunteer.checklistProgress.push({
+            itemId: newItem.id,
+            completed: false,
+          })
+          updated = true
+        }
+      }
+
+      if (updated) {
+        updatedCount++
+
+        // Also update the individual volunteer progress in localStorage
+        const key = `volunteerProgress_${volunteer.id}`
+        localStorage.setItem(key, JSON.stringify(volunteer.checklistProgress))
+      }
+    }
+
+    // Save the updated volunteers back to localStorage
+    localStorage.setItem("testVolunteers", JSON.stringify(volunteers))
+    console.log(`Updated ${updatedCount} volunteers with new checklist items`)
+  } catch (error) {
+    console.error("Error updating volunteers with new checklist items:", error)
+  }
 }
 
 export async function getVolunteerChecklistProgress(volunteerId: string): Promise<ChecklistProgress[]> {
@@ -113,6 +179,28 @@ export async function getVolunteerChecklistProgress(volunteerId: string): Promis
       if (storedProgress) {
         const progress = JSON.parse(storedProgress)
         console.log(`Retrieved progress for volunteer ${volunteerId}:`, progress)
+
+        // Check if there are any new checklist items that aren't in the progress
+        const progressItemIds = new Set(progress.map((p: ChecklistProgress) => p.itemId))
+        const missingItems = items.filter((item) => !progressItemIds.has(item.id))
+
+        // If there are missing items, add them to the progress
+        if (missingItems.length > 0) {
+          console.log(`Adding ${missingItems.length} missing checklist items to volunteer ${volunteerId}`)
+          const updatedProgress = [...progress]
+
+          for (const item of missingItems) {
+            updatedProgress.push({
+              itemId: item.id,
+              completed: false,
+            })
+          }
+
+          // Save the updated progress
+          localStorage.setItem(key, JSON.stringify(updatedProgress))
+          return updatedProgress
+        }
+
         return progress
       }
 
@@ -124,6 +212,34 @@ export async function getVolunteerChecklistProgress(volunteerId: string): Promis
 
         if (volunteer && volunteer.checklistProgress) {
           console.log(`Retrieved progress from main volunteer list for ${volunteerId}:`, volunteer.checklistProgress)
+
+          // Check if there are any new checklist items that aren't in the progress
+          const progressItemIds = new Set(volunteer.checklistProgress.map((p: ChecklistProgress) => p.itemId))
+          const missingItems = items.filter((item) => !progressItemIds.has(item.id))
+
+          // If there are missing items, add them to the progress
+          if (missingItems.length > 0) {
+            console.log(`Adding ${missingItems.length} missing checklist items to volunteer ${volunteerId}`)
+            const updatedProgress = [...volunteer.checklistProgress]
+
+            for (const item of missingItems) {
+              updatedProgress.push({
+                itemId: item.id,
+                completed: false,
+              })
+            }
+
+            // Save the updated progress
+            localStorage.setItem(key, JSON.stringify(updatedProgress))
+
+            // Also update the volunteer in the main volunteers list
+            volunteer.checklistProgress = updatedProgress
+            const updatedVolunteers = volunteers.map((v: any) => (v.id === volunteerId ? volunteer : v))
+            localStorage.setItem("testVolunteers", JSON.stringify(updatedVolunteers))
+
+            return updatedProgress
+          }
+
           return volunteer.checklistProgress
         }
       }

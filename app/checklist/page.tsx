@@ -77,9 +77,12 @@ export default function ChecklistPage() {
   const handleSave = async () => {
     setIsSaving(true)
     try {
+      // Save the checklist items
       await saveChecklistItems(checklistItems)
       debugLog("Saved checklist items", checklistItems)
-      alert("Checklist saved successfully!")
+
+      // Show success message
+      alert("Checklist saved successfully! New items will be added to all volunteers.")
     } catch (error) {
       console.error("Failed to save checklist:", error)
       alert("Failed to save checklist. Please try again.")
