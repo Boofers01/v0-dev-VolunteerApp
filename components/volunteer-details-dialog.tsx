@@ -506,19 +506,21 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
     }
   }
 
-  const handleChecklistItemToggle = async (itemId: string, isCompleted: boolean) => {
+  const handleChecklistItemToggle = async (itemId: string, completed: boolean) => {
+    // Create a new array with the updated progress
     const updatedProgress = checklistProgress.map((item) => {
       if (item.itemId === itemId) {
         return {
           ...item,
-          completed: isCompleted,
-          completedAt: isCompleted ? new Date().toISOString() : undefined,
-          completedBy: isCompleted ? "Current User" : undefined,
+          completed: completed,
+          completedAt: completed ? new Date().toISOString() : undefined,
+          completedBy: completed ? "Current User" : undefined,
         }
       }
       return item
     })
 
+    // Update the state
     setChecklistProgress(updatedProgress)
 
     // Update the volunteer's checklist progress
@@ -526,9 +528,21 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
 
     // Update the edited volunteer with the checklist progress
     setEditedVolunteer({ ...editedVolunteer, checklistProgress: updatedProgress })
+
+    // Show a status message to confirm the item was checked/unchecked
+    setStatusMessage({
+      type: "success",
+      message: completed ? "Checklist item completed" : "Checklist item marked as incomplete",
+    })
+
+    // Clear the status message after a few seconds
+    setTimeout(() => {
+      setStatusMessage({ type: null, message: "" })
+    }, 3000)
   }
 
   const handleScheduledDateChange = async (itemId: string, date: Date | undefined) => {
+    // Create a new array with the updated progress
     const updatedProgress = checklistProgress.map((item) => {
       if (item.itemId === itemId) {
         return {
@@ -539,6 +553,7 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
       return item
     })
 
+    // Update the state
     setChecklistProgress(updatedProgress)
 
     // Update the volunteer's checklist progress
@@ -546,9 +561,21 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
 
     // Update the edited volunteer with the checklist progress
     setEditedVolunteer({ ...editedVolunteer, checklistProgress: updatedProgress })
+
+    // Show a status message to confirm the date was set
+    setStatusMessage({
+      type: "success",
+      message: date ? `Scheduled date set to ${format(date, "MMM d, yyyy")}` : "Scheduled date cleared",
+    })
+
+    // Clear the status message after a few seconds
+    setTimeout(() => {
+      setStatusMessage({ type: null, message: "" })
+    }, 3000)
   }
 
   const handleCompletedDateChange = async (itemId: string, date: Date | undefined) => {
+    // Create a new array with the updated progress
     const updatedProgress = checklistProgress.map((item) => {
       if (item.itemId === itemId) {
         return {
@@ -561,6 +588,7 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
       return item
     })
 
+    // Update the state
     setChecklistProgress(updatedProgress)
 
     // Update the volunteer's checklist progress
@@ -568,6 +596,17 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
 
     // Update the edited volunteer with the checklist progress
     setEditedVolunteer({ ...editedVolunteer, checklistProgress: updatedProgress })
+
+    // Show a status message to confirm the date was set
+    setStatusMessage({
+      type: "success",
+      message: date ? `Completed date set to ${format(date, "MMM d, yyyy")}` : "Completed date cleared",
+    })
+
+    // Clear the status message after a few seconds
+    setTimeout(() => {
+      setStatusMessage({ type: null, message: "" })
+    }, 3000)
   }
 
   // Get initials for avatar fallback
@@ -860,7 +899,9 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
                                     <CalendarComponent
                                       mode="single"
                                       selected={progress.scheduledDate ? new Date(progress.scheduledDate) : undefined}
-                                      onSelect={(date) => handleScheduledDateChange(item.id, date)}
+                                      onSelect={(date) => {
+                                        handleScheduledDateChange(item.id, date)
+                                      }}
                                       initialFocus
                                     />
                                   </PopoverContent>
@@ -873,10 +914,20 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-500">Completed:</span>
                                 {progress.completedAt ? (
-                                  <span className="text-xs">
-                                    {format(new Date(progress.completedAt), "MMM d, yyyy")}
-                                    {progress.completedBy ? ` by ${progress.completedBy}` : ""}
-                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs">
+                                      {format(new Date(progress.completedAt), "MMM d, yyyy")}
+                                      {progress.completedBy ? ` by ${progress.completedBy}` : ""}
+                                    </span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 w-5 p-0 rounded-full"
+                                      onClick={() => handleCompletedDateChange(item.id, undefined)}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
                                 ) : (
                                   <Popover>
                                     <PopoverTrigger asChild>
@@ -889,7 +940,11 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
                                       <CalendarComponent
                                         mode="single"
                                         selected={undefined}
-                                        onSelect={(date) => handleCompletedDateChange(item.id, date)}
+                                        onSelect={(date) => {
+                                          if (date) {
+                                            handleCompletedDateChange(item.id, date)
+                                          }
+                                        }}
                                         initialFocus
                                       />
                                     </PopoverContent>
