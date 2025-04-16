@@ -26,9 +26,13 @@ export function KanbanCard({ card, listId, onUpdate, onDelete }: KanbanCardProps
   const [imageError, setImageError] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 
+  // Check if this card is in the All Volunteers list
+  const isInAllVolunteersList = listId === "all-volunteers-list"
+
   const [{ isDragging }, drag] = useDrag({
     type: "CARD",
     item: { id: card.id, listId },
+    canDrag: !isInAllVolunteersList, // Prevent dragging from All Volunteers list
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
@@ -187,7 +191,7 @@ export function KanbanCard({ card, listId, onUpdate, onDelete }: KanbanCardProps
         }
       }}
       style={{ opacity: isDragging ? 0.5 : 1 }}
-      className="mb-2 cursor-grab"
+      className={`mb-2 ${isInAllVolunteersList ? "" : "cursor-grab"}`}
     >
       <Card className="border border-gray-200 shadow-sm hover:shadow" onClick={handleCardClick}>
         <CardContent className="p-4">
@@ -266,6 +270,16 @@ export function KanbanCard({ card, listId, onUpdate, onDelete }: KanbanCardProps
                   </Badge>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Show list name for cards in the All Volunteers list */}
+          {isInAllVolunteersList && card.listId && (
+            <div className="mt-2">
+              <p className="text-xs font-medium mb-1">List:</p>
+              <Badge variant="default" className="text-xs py-0 px-1.5 h-5">
+                {card.listId}
+              </Badge>
             </div>
           )}
 

@@ -8,7 +8,7 @@ import { KanbanCard } from "@/components/kanban-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, MoreHorizontal, GripVertical, Filter, X } from "lucide-react"
-import type { CardType } from "@/lib/types"
+import type { CardType, ListType } from "@/lib/types"
 import { AddVolunteerDialog } from "@/components/add-volunteer-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +28,8 @@ interface KanbanListProps {
   onCardDelete: (cardId: string) => void
   onDelete: () => void
   isDraggable?: boolean
+  isAllVolunteersList?: boolean
+  allLists?: ListType[]
 }
 
 export function KanbanList({
@@ -41,6 +43,8 @@ export function KanbanList({
   onCardDelete,
   onDelete,
   isDraggable = false,
+  isAllVolunteersList = false,
+  allLists = [],
 }: KanbanListProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [listTitle, setListTitle] = useState(title)
@@ -48,6 +52,7 @@ export function KanbanList({
   const [filterActive, setFilterActive] = useState(false)
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [selectedLists, setSelectedLists] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
   const [{ isOver }, drop] = useDrop({
@@ -64,12 +69,14 @@ export function KanbanList({
 
   // Extract all unique roles and tags from cards
   const allRoles = Array.from(new Set(cards.flatMap((card) => card.currentRoles || []).filter(Boolean))).sort()
-
   const allTags = Array.from(new Set(cards.flatMap((card) => card.tags || []).filter(Boolean))).sort()
 
-  // Filter cards based on selected roles and tags
+  // Get all lists except the All Volunteers list for filtering
+  const filterableLists = allLists.filter((list) => list.id !== id)
+
+  // Filter cards based on selected roles, tags, and lists
   const filteredCards = cards.filter((card) => {
-    if (!filterActive || (selectedRoles.length === 0 && selectedTags.length === 0)) {
+    if (!filterActive || (selectedRoles.length === 0 && selectedTags.length === 0 && selectedLists.length === 0)) {
       return true
     }
 
@@ -80,7 +87,9 @@ export function KanbanList({
     const hasSelectedTag =
       selectedTags.length === 0 || (card.tags && card.tags.some((tag) => selectedTags.includes(tag)))
 
-    return hasSelectedRole && hasSelectedTag
+    const isInSelectedList = selectedLists.length === 0 || selectedLists.includes(card.listId || "")
+
+    return hasSelectedRole && hasSelectedTag && isInSelectedList
   })
 
   const handleTitleClick = () => {
@@ -121,19 +130,31 @@ export function KanbanList({
     setFilterActive(true)
   }
 
+  const toggleListFilter = (listId: string) => {
+    setSelectedLists((prev) => (prev.includes(listId) ? prev.filter((l) => l !== listId) : [...prev, listId]))
+    setFilterActive(true)
+  }
+
   const clearFilters = () => {
     setSelectedRoles([])
     setSelectedTags([])
+    setSelectedLists([])
     setFilterActive(false)
   }
 
   return (
     <div
       ref={drop}
-      className={`flex-shrink-0 w-80 bg-white rounded-lg shadow ${isOver ? "bg-gray-100" : ""}`}
+      className={`flex-shrink-0 w-80 rounded-lg shadow ${isOver ? "bg-gray-100" : ""} ${
+        isAllVolunteersList ? "bg-red-50" : "bg-white"
+      }`}
       style={{ height: "100%", display: "flex", flexDirection: "column" }}
     >
-      <div className="p-3 border-b border-gray-200 flex items-center justify-between bg-white rounded-t-lg">
+      <div
+        className={`p-3 border-b border-gray-200 flex items-center justify-between rounded-t-lg ${
+          isAllVolunteersList ? "bg-red-50" : "bg-white"
+        }`}
+      >
         <div className="flex items-center flex-1">
           {isDraggable && (
             <div className="cursor-move p-1 mr-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100">
@@ -182,9 +203,10 @@ export function KanbanList({
                 </div>
 
                 <Tabs defaultValue="roles">
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="roles">Roles</TabsTrigger>
                     <TabsTrigger value="tags">Tags</TabsTrigger>
+                    {isAllVolunteersList && <TabsTrigger value="lists">Lists</TabsTrigger>}
                   </TabsList>
 
                   <TabsContent value="roles" className="mt-2">
@@ -228,9 +250,32 @@ export function KanbanList({
                       <p className="text-sm text-gray-500">No tags available</p>
                     )}
                   </TabsContent>
+
+                  {isAllVolunteersList && (
+                    <TabsContent value="lists" className="mt-2">
+                      {filterableLists.length > 0 ? (
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {filterableLists.map((list) => (
+                            <div key={list.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`list-${id}-${list.id}`}
+                                checked={selectedLists.includes(list.id)}
+                                onCheckedChange={() => toggleListFilter(list.id)}
+                              />
+                              <Label htmlFor={`list-${id}-${list.id}`} className="text-sm cursor-pointer">
+                                {list.title}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No lists available</p>
+                      )}
+                    </TabsContent>
+                  )}
                 </Tabs>
 
-                {filterActive && (selectedRoles.length > 0 || selectedTags.length > 0) && (
+                {filterActive && (selectedRoles.length > 0 || selectedTags.length > 0 || selectedLists.length > 0) && (
                   <div className="pt-2 border-t">
                     <h5 className="text-xs font-medium mb-2">Active Filters:</h5>
                     <div className="flex flex-wrap gap-1">
@@ -250,6 +295,19 @@ export function KanbanList({
                           <X className="h-3 w-3 cursor-pointer" onClick={() => toggleTagFilter(tag)} />
                         </Badge>
                       ))}
+                      {selectedLists.map((listId) => {
+                        const listTitle = filterableLists.find((l) => l.id === listId)?.title || listId
+                        return (
+                          <Badge
+                            key={listId}
+                            variant="default"
+                            className="flex items-center gap-1 text-xs py-0 px-1.5 h-5"
+                          >
+                            {listTitle}
+                            <X className="h-3 w-3 cursor-pointer" onClick={() => toggleListFilter(listId)} />
+                          </Badge>
+                        )
+                      })}
                     </div>
                   </div>
                 )}

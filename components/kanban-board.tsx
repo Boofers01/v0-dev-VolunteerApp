@@ -12,6 +12,7 @@ import { debugLog } from "@/lib/debug-utils"
 // Local storage keys
 const LISTS_STORAGE_KEY = "volunteerTrackerLists"
 const VOLUNTEERS_STORAGE_KEY = "testVolunteers"
+const ALL_VOLUNTEERS_LIST_ID = "all-volunteers-list"
 
 interface KanbanBoardProps {
   newListTitleState?: [string, React.Dispatch<React.SetStateAction<string>>]
@@ -28,6 +29,8 @@ interface DraggableListProps {
   onCardUpdate: (card: CardType) => void
   onCardDelete: (cardId: string) => void
   onDelete: () => void
+  allLists: ListType[]
+  isAllVolunteersList?: boolean
 }
 
 function DraggableList({
@@ -40,6 +43,8 @@ function DraggableList({
   onCardUpdate,
   onCardDelete,
   onDelete,
+  allLists,
+  isAllVolunteersList = false,
 }: DraggableListProps) {
   const ref = useRef<HTMLDivElement>(null)
 
@@ -82,6 +87,8 @@ function DraggableList({
         onCardDelete={onCardDelete}
         onDelete={onDelete}
         isDraggable={true}
+        isAllVolunteersList={isAllVolunteersList}
+        allLists={allLists}
       />
     </div>
   )
@@ -295,33 +302,37 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
     if (!isLoading && listsInitialized.current) {
       try {
         // Save list structure (without cards)
-        const listsToSave = lists.map((list) => ({
-          id: list.id,
-          title: list.title,
-        }))
+        const listsToSave = lists
+          .filter((list) => list.id !== ALL_VOLUNTEERS_LIST_ID) // Don't save the All Volunteers list
+          .map((list) => ({
+            id: list.id,
+            title: list.title,
+          }))
         localStorage.setItem(LISTS_STORAGE_KEY, JSON.stringify(listsToSave))
 
         // Extract all volunteers with their list IDs, ensuring no duplicates
         const allVolunteers: CardType[] = []
         const processedIds = new Set<string>()
 
-        lists.forEach((list) => {
-          if (list.cards && list.cards.length > 0) {
-            list.cards.forEach((card) => {
-              // Only add the card if we haven't processed its ID yet
-              if (!processedIds.has(card.id)) {
-                // Ensure each card has the correct listId
-                allVolunteers.push({
-                  ...card,
-                  listId: list.id,
-                })
-                processedIds.add(card.id)
-              } else {
-                debugLog("Prevented duplicate card from being saved", { cardId: card.id, listId: list.id })
-              }
-            })
-          }
-        })
+        lists
+          .filter((list) => list.id !== ALL_VOLUNTEERS_LIST_ID) // Don't include cards from All Volunteers list
+          .forEach((list) => {
+            if (list.cards && list.cards.length > 0) {
+              list.cards.forEach((card) => {
+                // Only add the card if we haven't processed its ID yet
+                if (!processedIds.has(card.id)) {
+                  // Ensure each card has the correct listId
+                  allVolunteers.push({
+                    ...card,
+                    listId: list.id,
+                  })
+                  processedIds.add(card.id)
+                } else {
+                  debugLog("Prevented duplicate card from being saved", { cardId: card.id, listId: list.id })
+                }
+              })
+            }
+          })
 
         // Count volunteers with images for debugging
         const volunteersWithImages = allVolunteers.filter((v) => v.image).length
@@ -373,6 +384,11 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
   }
 
   const moveCard = (cardId: string, fromListId: string, toListId: string) => {
+    // Don't allow dragging from the All Volunteers list
+    if (fromListId === ALL_VOLUNTEERS_LIST_ID) {
+      return
+    }
+
     setLists((prevLists) => {
       // Find the source and destination lists
       const sourceListIndex = prevLists.findIndex((list) => list.id === fromListId)
@@ -403,6 +419,20 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
         newLists[destListIndex].cards.push(movedCard)
       }
 
+      // Update the All Volunteers list if it exists
+      const allVolunteersListIndex = newLists.findIndex((list) => list.id === ALL_VOLUNTEERS_LIST_ID)
+      if (allVolunteersListIndex !== -1) {
+        // Find the card in the All Volunteers list
+        const allVolunteersCardIndex = newLists[allVolunteersListIndex].cards.findIndex((card) => card.id === cardId)
+        if (allVolunteersCardIndex !== -1) {
+          // Update the card in the All Volunteers list
+          newLists[allVolunteersListIndex].cards[allVolunteersCardIndex] = {
+            ...movedCard,
+            listId: toListId,
+          }
+        }
+      }
+
       // Log the operation for debugging
       debugLog("Moved card between lists", {
         cardId,
@@ -420,15 +450,21 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
     const cardWithListId = { ...card, listId }
 
     setLists((prevLists) => {
-      return prevLists.map((list) => {
-        if (list.id === listId) {
-          return {
-            ...list,
-            cards: [...list.cards, cardWithListId],
-          }
-        }
-        return list
-      })
+      const newLists = [...prevLists]
+
+      // Add to the specified list
+      const listIndex = newLists.findIndex((list) => list.id === listId)
+      if (listIndex !== -1) {
+        newLists[listIndex].cards.push(cardWithListId)
+      }
+
+      // Add to the All Volunteers list if it exists
+      const allVolunteersListIndex = newLists.findIndex((list) => list.id === ALL_VOLUNTEERS_LIST_ID)
+      if (allVolunteersListIndex !== -1) {
+        newLists[allVolunteersListIndex].cards.push(cardWithListId)
+      }
+
+      return newLists
     })
 
     // Also update the volunteers array
@@ -450,13 +486,27 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
     })
 
     setLists((prevLists) => {
-      return prevLists.map((list) => {
-        if (list.id === listId) {
+      const newLists = [...prevLists]
+
+      // Update in all lists
+      return newLists.map((list) => {
+        // Find the card in this list
+        const cardIndex = list.cards.findIndex((card) => card.id === updatedCard.id)
+
+        // If found, update it
+        if (cardIndex !== -1) {
+          const updatedCards = [...list.cards]
+          updatedCards[cardIndex] =
+            list.id === listId
+              ? cardWithListId
+              : { ...cardWithListId, listId: list.id === ALL_VOLUNTEERS_LIST_ID ? listId : list.id }
+
           return {
             ...list,
-            cards: list.cards.map((card) => (card.id === cardWithListId.id ? cardWithListId : card)),
+            cards: updatedCards,
           }
         }
+
         return list
       })
     })
@@ -470,13 +520,11 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
   const deleteCard = (listId: string, cardId: string) => {
     setLists((prevLists) => {
       return prevLists.map((list) => {
-        if (list.id === listId) {
-          return {
-            ...list,
-            cards: list.cards.filter((card) => card.id !== cardId),
-          }
+        // Remove the card from all lists
+        return {
+          ...list,
+          cards: list.cards.filter((card) => card.id !== cardId),
         }
-        return list
       })
     })
 
@@ -487,6 +535,12 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
   }
 
   const deleteList = (listId: string) => {
+    // Don't allow deleting the All Volunteers list
+    if (listId === ALL_VOLUNTEERS_LIST_ID) {
+      alert("The All Volunteers list cannot be deleted.")
+      return
+    }
+
     // Find the list to be deleted
     const listToDelete = lists.find((list) => list.id === listId)
     if (!listToDelete) return
@@ -505,8 +559,8 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
 
       // If there are cards in this list and there's at least one other list
       if (newLists[listIndex].cards.length > 0 && newLists.length > 1) {
-        // Find the first list that's not the one being deleted
-        const firstListIndex = newLists.findIndex((list) => list.id !== listId)
+        // Find the first list that's not the one being deleted and not the All Volunteers list
+        const firstListIndex = newLists.findIndex((list) => list.id !== listId && list.id !== ALL_VOLUNTEERS_LIST_ID)
 
         if (firstListIndex !== -1) {
           // Move all cards to the first list
@@ -514,6 +568,18 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
             card.listId = newLists[firstListIndex].id
             newLists[firstListIndex].cards.push(card)
           })
+
+          // Update the All Volunteers list if it exists
+          const allVolunteersListIndex = newLists.findIndex((list) => list.id === ALL_VOLUNTEERS_LIST_ID)
+          if (allVolunteersListIndex !== -1) {
+            // Update the listId of all cards from the deleted list
+            newLists[allVolunteersListIndex].cards = newLists[allVolunteersListIndex].cards.map((card) => {
+              if (card.listId === listId) {
+                return { ...card, listId: newLists[firstListIndex].id }
+              }
+              return card
+            })
+          }
         }
       }
 
@@ -524,6 +590,63 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
       return newLists
     })
   }
+
+  // Create the All Volunteers list if it doesn't exist
+  useEffect(() => {
+    if (!isLoading && listsInitialized.current) {
+      setLists((prevLists) => {
+        // Check if the All Volunteers list already exists
+        const allVolunteersListExists = prevLists.some((list) => list.id === ALL_VOLUNTEERS_LIST_ID)
+
+        if (!allVolunteersListExists) {
+          // Collect all cards from all lists
+          const allCards = prevLists.flatMap((list) => list.cards.map((card) => ({ ...card })))
+
+          // Create the All Volunteers list
+          const allVolunteersList: ListType = {
+            id: ALL_VOLUNTEERS_LIST_ID,
+            title: "All Volunteers",
+            cards: allCards,
+          }
+
+          // Add it to the end of the lists
+          return [...prevLists, allVolunteersList]
+        }
+
+        return prevLists
+      })
+    }
+  }, [isLoading])
+
+  // Keep the All Volunteers list updated with all cards
+  useEffect(() => {
+    if (!isLoading && listsInitialized.current) {
+      setLists((prevLists) => {
+        // Find the All Volunteers list
+        const allVolunteersListIndex = prevLists.findIndex((list) => list.id === ALL_VOLUNTEERS_LIST_ID)
+
+        if (allVolunteersListIndex !== -1) {
+          // Collect all cards from all other lists
+          const allCards = prevLists
+            .filter((list) => list.id !== ALL_VOLUNTEERS_LIST_ID)
+            .flatMap((list) => list.cards.map((card) => ({ ...card })))
+
+          // Create a new array of lists
+          const newLists = [...prevLists]
+
+          // Update the All Volunteers list
+          newLists[allVolunteersListIndex] = {
+            ...newLists[allVolunteersListIndex],
+            cards: allCards,
+          }
+
+          return newLists
+        }
+
+        return prevLists
+      })
+    }
+  }, [volunteers, isLoading])
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-full">Loading board...</div>
@@ -551,6 +674,8 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
               onCardUpdate={(card) => updateCard(list.id, card)}
               onCardDelete={(cardId) => deleteCard(list.id, cardId)}
               onDelete={() => deleteList(list.id)}
+              allLists={lists}
+              isAllVolunteersList={list.id === ALL_VOLUNTEERS_LIST_ID}
             />
           ))}
           {/* Add an invisible spacer element to ensure the last list is fully visible when scrolled */}
