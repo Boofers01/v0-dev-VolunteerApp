@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { KanbanBoard } from "@/components/kanban-board"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,6 +23,21 @@ export default function Home() {
     // Clear the input
     setNewListTitle("")
   }
+
+  // Add an effect to listen for the saveAllData event
+  useEffect(() => {
+    const handleSaveAllData = () => {
+      // Dispatch a custom event to save all data
+      const event = new CustomEvent("saveAllData")
+      window.dispatchEvent(event)
+    }
+
+    window.addEventListener("saveAllData", handleSaveAllData)
+
+    return () => {
+      window.removeEventListener("saveAllData", handleSaveAllData)
+    }
+  }, [])
 
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-100">

@@ -146,13 +146,13 @@ export function KanbanList({
     <div
       ref={drop}
       className={`flex-shrink-0 w-80 rounded-lg shadow ${isOver ? "bg-gray-100" : ""} ${
-        isAllVolunteersList ? "bg-red-50" : "bg-white"
+        isAllVolunteersList ? "bg-red-100" : "bg-white"
       }`}
       style={{ height: "100%", display: "flex", flexDirection: "column" }}
     >
       <div
         className={`p-3 border-b border-gray-200 flex items-center justify-between rounded-t-lg ${
-          isAllVolunteersList ? "bg-red-50" : "bg-white"
+          isAllVolunteersList ? "bg-red-100" : "bg-white"
         }`}
       >
         <div className="flex items-center flex-1">

@@ -8,10 +8,11 @@ import { HTML5Backend } from "react-dnd-html5-backend"
 import { KanbanList } from "@/components/kanban-list"
 import type { CardType, ListType } from "@/lib/types"
 import { debugLog } from "@/lib/debug-utils"
+import { autoSave, forceSave, loadAllData } from "@/lib/auto-save"
 
 // Local storage keys
-const LISTS_STORAGE_KEY = "volunteerTrackerLists"
-const VOLUNTEERS_STORAGE_KEY = "testVolunteers"
+// const LISTS_STORAGE_KEY = "volunteerTrackerLists"
+// const VOLUNTEERS_STORAGE_KEY = "testVolunteers"
 const ALL_VOLUNTEERS_LIST_ID = "all-volunteers-list"
 
 interface KanbanBoardProps {
@@ -106,136 +107,95 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
     try {
       setIsLoading(true)
 
-      // Load volunteers first
-      const savedVolunteers = localStorage.getItem(VOLUNTEERS_STORAGE_KEY)
-      let loadedVolunteers: CardType[] = []
+      const { lists: loadedListsData, volunteers: loadedVolunteers } = loadAllData()
 
-      if (savedVolunteers) {
-        try {
-          loadedVolunteers = JSON.parse(savedVolunteers)
+      // Log information about volunteers with images for debugging
+      const volunteersWithImages = loadedVolunteers.filter((v) => v.image).length
+      debugLog(`Loaded ${volunteersWithImages} volunteers with images from localStorage`, {
+        totalVolunteers: loadedVolunteers.length,
+      })
 
-          // Log information about volunteers with images for debugging
-          const volunteersWithImages = loadedVolunteers.filter((v) => v.image).length
-          debugLog(`Loaded ${volunteersWithImages} volunteers with images from localStorage`, {
-            totalVolunteers: loadedVolunteers.length,
-          })
+      // Ensure all volunteers have the required properties
+      const processedVolunteers = loadedVolunteers.map((volunteer) => {
+        // Make sure attachments array exists
+        if (!volunteer.attachments) volunteer.attachments = []
 
-          // Ensure all volunteers have the required properties
-          loadedVolunteers = loadedVolunteers.map((volunteer) => {
-            // Make sure attachments array exists
-            if (!volunteer.attachments) volunteer.attachments = []
-
-            // Make sure image property is preserved
-            if (!volunteer.image && volunteer.attachments && volunteer.attachments.length > 0) {
-              // Try to find an image in attachments if image property is missing
-              const imageAttachment = volunteer.attachments.find(
-                (att) => att.type?.startsWith("image/") || att.name?.match(/\.(jpg|jpeg|png|gif|webp)$/i),
-              )
-              if (
-                imageAttachment &&
-                imageAttachment.url &&
-                typeof imageAttachment.url === "string" &&
-                imageAttachment.url.startsWith("data:")
-              ) {
-                volunteer.image = imageAttachment.url
-                debugLog("Recovered image from attachments during load", {
-                  volunteerId: volunteer.id,
-                  volunteerName: volunteer.title,
-                })
-              }
-            }
-
-            // Validate image data
-            if (volunteer.image && (typeof volunteer.image !== "string" || !volunteer.image.startsWith("data:"))) {
-              debugLog(`Invalid image data for ${volunteer.title}, removing image property`, {
-                volunteerId: volunteer.id,
-              })
-              volunteer.image = null
-            }
-
-            return volunteer
-          })
-
-          // Save the updated volunteers back to localStorage to ensure image properties are preserved
-          localStorage.setItem(VOLUNTEERS_STORAGE_KEY, JSON.stringify(loadedVolunteers))
-
-          setVolunteers(loadedVolunteers)
-        } catch (error) {
-          console.error("Error parsing volunteers from localStorage:", error)
-          loadedVolunteers = []
+        // Make sure image property is preserved
+        if (!volunteer.image && volunteer.attachments && volunteer.attachments.length > 0) {
+          // Try to find an image in attachments if image property is missing
+          const imageAttachment = volunteer.attachments.find(
+            (att) => att.type?.startsWith("image/") || att.name?.match(/\.(jpg|jpeg|png|gif|webp)$/i),
+          )
+          if (
+            imageAttachment &&
+            imageAttachment.url &&
+            typeof imageAttachment.url === "string" &&
+            imageAttachment.url.startsWith("data:")
+          ) {
+            volunteer.image = imageAttachment.url
+            debugLog("Recovered image from attachments during load", {
+              volunteerId: volunteer.id,
+              volunteerName: volunteer.title,
+            })
+          }
         }
-      }
 
-      // Then load lists
-      const savedLists = localStorage.getItem(LISTS_STORAGE_KEY)
-      let loadedLists: ListType[] = []
-
-      if (savedLists) {
-        // Parse the basic list structure (without cards)
-        const parsedLists = JSON.parse(savedLists)
-
-        // Create full list objects with cards from volunteers
-        loadedLists = parsedLists.map((list: any) => {
-          // Find all volunteers that belong to this list
-          const listCards = loadedVolunteers.filter((v) => v.listId === list.id)
-          return {
-            id: list.id,
-            title: list.title,
-            cards: listCards,
-          }
-        })
-      } else {
-        // Initialize with default lists if none exist
-        loadedLists = [
-          { id: "1", title: "New Applications", cards: [] },
-          { id: "2", title: "In Progress", cards: [] },
-          { id: "3", title: "Ready to Start", cards: [] },
-          { id: "4", title: "Active Volunteers", cards: [] },
-        ]
-
-        // Save the default lists to localStorage
-        localStorage.setItem(
-          LISTS_STORAGE_KEY,
-          JSON.stringify(loadedLists.map((list) => ({ id: list.id, title: list.title }))),
-        )
-
-        // Assign unassigned volunteers to the first list
-        if (loadedVolunteers.length > 0) {
-          loadedVolunteers.forEach((volunteer) => {
-            if (!volunteer.listId) {
-              volunteer.listId = loadedLists[0].id
-            }
+        // Validate image data
+        if (volunteer.image && (typeof volunteer.image !== "string" || !volunteer.image.startsWith("data:"))) {
+          debugLog(`Invalid image data for ${volunteer.title}, removing image property`, {
+            volunteerId: volunteer.id,
           })
-
-          // Update volunteers in localStorage
-          localStorage.setItem(VOLUNTEERS_STORAGE_KEY, JSON.stringify(loadedVolunteers))
+          volunteer.image = null
         }
-      }
 
-      // Distribute volunteers to their respective lists
-      loadedVolunteers.forEach((volunteer) => {
-        const listId = volunteer.listId || loadedLists[0].id
-        const listIndex = loadedLists.findIndex((list) => list.id === listId)
+        return volunteer
+      })
 
-        if (listIndex !== -1) {
-          if (!loadedLists[listIndex].cards) {
-            loadedLists[listIndex].cards = []
-          }
-          loadedLists[listIndex].cards.push(volunteer)
-        } else if (loadedLists.length > 0) {
-          // If list doesn't exist, add to first list
-          if (!loadedLists[0].cards) {
-            loadedLists[0].cards = []
-          }
-          loadedLists[0].cards.push({
-            ...volunteer,
-            listId: loadedLists[0].id,
-          })
+      // Save the updated volunteers back to localStorage to ensure image properties are preserved
+      autoSave({ volunteers: processedVolunteers }, true)
+
+      setVolunteers(processedVolunteers)
+
+      // Create full list objects with cards from volunteers
+      const processedLists = loadedListsData.map((list: any) => {
+        // Find all volunteers that belong to this list
+        const listCards = processedVolunteers.filter((v) => v.listId === list.id)
+        return {
+          id: list.id,
+          title: list.title,
+          cards: listCards,
         }
       })
 
+      // Assign unassigned volunteers to the first list if needed
+      if (processedVolunteers.length > 0 && processedLists.length > 0) {
+        let unassignedFound = false
+        processedVolunteers.forEach((volunteer) => {
+          if (!volunteer.listId) {
+            volunteer.listId = processedLists[0].id
+            unassignedFound = true
+          }
+        })
+
+        // Update volunteers in localStorage if any were unassigned
+        if (unassignedFound) {
+          autoSave({ volunteers: processedVolunteers }, true)
+        }
+      }
+
+      // Create the All Volunteers list immediately
+      const allCards = processedVolunteers.map((volunteer) => ({ ...volunteer }))
+      const allVolunteersList: ListType = {
+        id: ALL_VOLUNTEERS_LIST_ID,
+        title: "All Volunteers",
+        cards: allCards,
+      }
+
+      // Add the All Volunteers list to the processed lists
+      const finalLists = [...processedLists, allVolunteersList]
+
       // Clean up any duplicates that might exist in the loaded lists
-      const cleanedLists = loadedLists.map((list) => {
+      const cleanedLists = finalLists.map((list) => {
         const uniqueCards: CardType[] = []
         const cardIds = new Set<string>()
 
@@ -258,13 +218,14 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
       listsInitialized.current = true
 
       // Count volunteers with images for debugging
-      const totalVolunteersWithImages = loadedVolunteers.filter((v) => v.image).length
+      const totalVolunteersWithImages = processedVolunteers.filter((v) => v.image).length
       debugLog(`Board loaded with ${totalVolunteersWithImages} volunteers having images`, {
         totalLists: cleanedLists.length,
-        totalVolunteers: loadedVolunteers.length,
+        totalVolunteers: processedVolunteers.length,
       })
     } catch (error) {
       console.error("Error loading data from localStorage:", error)
+      debugLog("Error loading board data", { error: String(error) })
     } finally {
       setIsLoading(false)
     }
@@ -301,15 +262,6 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
   useEffect(() => {
     if (!isLoading && listsInitialized.current) {
       try {
-        // Save list structure (without cards)
-        const listsToSave = lists
-          .filter((list) => list.id !== ALL_VOLUNTEERS_LIST_ID) // Don't save the All Volunteers list
-          .map((list) => ({
-            id: list.id,
-            title: list.title,
-          }))
-        localStorage.setItem(LISTS_STORAGE_KEY, JSON.stringify(listsToSave))
-
         // Extract all volunteers with their list IDs, ensuring no duplicates
         const allVolunteers: CardType[] = []
         const processedIds = new Set<string>()
@@ -336,15 +288,19 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
 
         // Count volunteers with images for debugging
         const volunteersWithImages = allVolunteers.filter((v) => v.image).length
-        debugLog("Saving volunteers to localStorage", {
+        debugLog("Auto-saving volunteers", {
           total: allVolunteers.length,
           withImages: volunteersWithImages,
         })
 
-        // Save all volunteers
-        localStorage.setItem(VOLUNTEERS_STORAGE_KEY, JSON.stringify(allVolunteers))
+        // Use our auto-save utility to save the data
+        autoSave({
+          lists,
+          volunteers: allVolunteers,
+        })
       } catch (error) {
         console.error("Error saving data to localStorage:", error)
+        debugLog("Error auto-saving data", { error: String(error) })
       }
     }
   }, [lists, isLoading])
@@ -441,6 +397,14 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
         cardData: movedCard,
       })
 
+      // Force an immediate save after moving a card
+      setTimeout(() => {
+        forceSave(
+          newLists,
+          newLists.filter((list) => list.id !== ALL_VOLUNTEERS_LIST_ID).flatMap((list) => list.cards),
+        )
+      }, 0)
+
       return newLists
     })
   }
@@ -489,7 +453,7 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
       const newLists = [...prevLists]
 
       // Update in all lists
-      return newLists.map((list) => {
+      const updatedLists = newLists.map((list) => {
         // Find the card in this list
         const cardIndex = list.cards.findIndex((card) => card.id === updatedCard.id)
 
@@ -509,11 +473,24 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
 
         return list
       })
+
+      // Force an immediate save after updating a card
+      setTimeout(() => {
+        forceSave(
+          updatedLists,
+          updatedLists.filter((list) => list.id !== ALL_VOLUNTEERS_LIST_ID).flatMap((list) => list.cards),
+        )
+      }, 0)
+
+      return updatedLists
     })
 
     // Also update the volunteers array
     setVolunteers((prevVolunteers) => {
-      return prevVolunteers.map((volunteer) => (volunteer.id === cardWithListId.id ? cardWithListId : volunteer))
+      const updatedVolunteers = prevVolunteers.map((volunteer) =>
+        volunteer.id === cardWithListId.id ? cardWithListId : volunteer,
+      )
+      return updatedVolunteers
     })
   }
 
@@ -592,61 +569,61 @@ export function KanbanBoard({ newListTitleState }: KanbanBoardProps) {
   }
 
   // Create the All Volunteers list if it doesn't exist
-  useEffect(() => {
-    if (!isLoading && listsInitialized.current) {
-      setLists((prevLists) => {
-        // Check if the All Volunteers list already exists
-        const allVolunteersListExists = prevLists.some((list) => list.id === ALL_VOLUNTEERS_LIST_ID)
+  // useEffect(() => {
+  //   if (!isLoading && listsInitialized.current) {
+  //     setLists((prevLists) => {
+  //       // Check if the All Volunteers list already exists
+  //       const allVolunteersListExists = prevLists.some((list) => list.id === ALL_VOLUNTEERS_LIST_ID)
 
-        if (!allVolunteersListExists) {
-          // Collect all cards from all lists
-          const allCards = prevLists.flatMap((list) => list.cards.map((card) => ({ ...card })))
+  //       if (!allVolunteersListExists) {
+  //         // Collect all cards from all lists
+  //         const allCards = prevLists.flatMap((list) => list.cards.map((card) => ({ ...card })))
 
-          // Create the All Volunteers list
-          const allVolunteersList: ListType = {
-            id: ALL_VOLUNTEERS_LIST_ID,
-            title: "All Volunteers",
-            cards: allCards,
-          }
+  //         // Create the All Volunteers list
+  //         const allVolunteersList: ListType = {
+  //           id: ALL_VOLUNTEERS_LIST_ID,
+  //           title: "All Volunteers",
+  //           cards: allCards,
+  //         }
 
-          // Add it to the end of the lists
-          return [...prevLists, allVolunteersList]
-        }
+  //         // Add it to the end of the lists
+  //         return [...prevLists, allVolunteersList]
+  //       }
 
-        return prevLists
-      })
-    }
-  }, [isLoading])
+  //       return prevLists
+  //     })
+  //   }
+  // }, [isLoading])
 
   // Keep the All Volunteers list updated with all cards
-  useEffect(() => {
-    if (!isLoading && listsInitialized.current) {
-      setLists((prevLists) => {
-        // Find the All Volunteers list
-        const allVolunteersListIndex = prevLists.findIndex((list) => list.id === ALL_VOLUNTEERS_LIST_ID)
+  // useEffect(() => {
+  //   if (!isLoading && listsInitialized.current) {
+  //     setLists((prevLists) => {
+  //       // Find the All Volunteers list
+  //       const allVolunteersListIndex = prevLists.findIndex((list) => list.id === ALL_VOLUNTEERS_LIST_ID)
 
-        if (allVolunteersListIndex !== -1) {
-          // Collect all cards from all other lists
-          const allCards = prevLists
-            .filter((list) => list.id !== ALL_VOLUNTEERS_LIST_ID)
-            .flatMap((list) => list.cards.map((card) => ({ ...card })))
+  //       if (allVolunteersListIndex !== -1) {
+  //         // Collect all cards from all other lists
+  //         const allCards = prevLists
+  //           .filter((list) => list.id !== ALL_VOLUNTEERS_LIST_ID)
+  //           .flatMap((list) => list.cards.map((card) => ({ ...card })))
 
-          // Create a new array of lists
-          const newLists = [...prevLists]
+  //         // Create a new array of lists
+  //         const newLists = [...prevLists]
 
-          // Update the All Volunteers list
-          newLists[allVolunteersListIndex] = {
-            ...newLists[allVolunteersListIndex],
-            cards: allCards,
-          }
+  //         // Update the All Volunteers list
+  //         newLists[allVolunteersListIndex] = {
+  //           ...newLists[allVolunteersListIndex],
+  //           cards: allCards,
+  //         }
 
-          return newLists
-        }
+  //         return newLists
+  //       }
 
-        return prevLists
-      })
-    }
-  }, [volunteers, isLoading])
+  //       return prevLists
+  //     })
+  //   }
+  // }, [volunteers, isLoading])
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-full">Loading board...</div>

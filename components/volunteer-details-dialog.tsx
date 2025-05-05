@@ -574,6 +574,9 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
     setTimeout(() => {
       setStatusMessage({ type: null, message: "" })
     }, 3000)
+
+    // Force save after toggling a checklist item
+    window.dispatchEvent(new CustomEvent("saveAllData"))
   }
 
   const handleScheduledDateChange = async (itemId: string, date: Date | undefined) => {
@@ -615,6 +618,9 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
     setTimeout(() => {
       setStatusMessage({ type: null, message: "" })
     }, 3000)
+
+    // Force save after changing a date
+    window.dispatchEvent(new CustomEvent("saveAllData"))
   }
 
   const handleCompletedDateChange = async (itemId: string, date: Date | undefined) => {
@@ -659,6 +665,9 @@ export function VolunteerDetailsDialog({ volunteer, isOpen, onClose, onUpdate }:
     setTimeout(() => {
       setStatusMessage({ type: null, message: "" })
     }, 3000)
+
+    // Force save after changing a date
+    window.dispatchEvent(new CustomEvent("saveAllData"))
   }
 
   // Get initials for avatar fallback
